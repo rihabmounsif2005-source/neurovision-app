@@ -1,80 +1,124 @@
-import os
-import numpy as np
+from flask import Flask, render_template, request
+from pathlib import Path
 from PIL import Image
-from flask import Flask, render_template, request, jsonify
+import numpy as np
 import tensorflow as tf
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 app = Flask(__name__)
 
-MODEL_PATH = os.path.join("model", "brain_tumor_model.keras")
-model = tf.keras.models.load_model(MODEL_PATH)
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "model" / "brain_tumor_model.keras"
+UPLOAD_DIR = BASE_DIR / "static" / "uploads"
 
 CLASS_NAMES = ["glioma", "meningioma", "notumor", "pituitary"]
 
-DISPLAY_NAMES = {
-    "glioma": "Glioma",
+LABELS_FR = {
+    "glioma": "Gliome",
     "meningioma": "Méningiome",
-    "notumor": "No Tumor",
-    "pituitary": "Pituitary"
+    "notumor": "Pas de tumeur",
+    "pituitary": "Tumeur hypophysaire",
 }
 
-def prepare_image(file):
-    img = Image.open(file).convert("RGB")
-    img = img.resize((224, 224))
-    img_array = np.array(img, dtype=np.float32) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-    return img_array
+history = []
+
+model = tf.keras.models.load_model(MODEL_PATH)
+
+
+def get_stats():
+    total = len(history)
+
+    counts = {
+        "Gliome": 0,
+        "Méningiome": 0,
+        "Tumeur hypophysaire": 0,
+        "Pas de tumeur": 0,
+        "Metastatic": 0
+    }
+
+    for item in history:
+        if item["class_name"] in counts:
+            counts[item["class_name"]] += 1
+
+    denominator = total if total > 0 else 1
+
+    percentages = {
+        "Gliome": round((counts["Gliome"] / denominator) * 100),
+        "Méningiome": round((counts["Méningiome"] / denominator) * 100),
+        "Tumeur hypophysaire": round((counts["Tumeur hypophysaire"] / denominator) * 100),
+        "Pas de tumeur": round((counts["Pas de tumeur"] / denominator) * 100),
+        "Metastatic": round((counts["Metastatic"] / denominator) * 100)
+    }
+
+    return {
+        "total": total,
+        "counts": counts,
+        "percentages": percentages
+    }
+
 
 @app.route("/")
 def home():
-    stats = {
-        "percentages": {
-            "Gliome": 0,
-            "Méningiome": 0,
-            "Pituitary": 0,
-            "Sain": 0,
-            "Metastatic": 0
-        }
-    }
-    return render_template("index.html", stats=stats)
+    return render_template(
+        "index.html",
+        prediction=None,
+        history=history[-3:],
+        stats=get_stats()
+    )
+
+
 @app.route("/predict", methods=["POST"])
 def predict():
-    try:
-        if "image" not in request.files:
-            return jsonify({"error": "Aucune image reçue"}), 400
+    file = request.files.get("image")
 
-        file = request.files["image"]
+    if file is None or file.filename == "":
+        return render_template(
+            "index.html",
+            prediction=None,
+            history=history[-3:],
+            stats=get_stats()
+        )
 
-        if file.filename == "":
-            return jsonify({"error": "Aucun fichier choisi"}), 400
+    image_path = UPLOAD_DIR / "uploaded_image.jpg"
+    file.save(image_path)
 
-        img = prepare_image(file)
-        prediction = model.predict(img)[0]
+    image = Image.open(image_path).convert("RGB")
+    image = image.resize((224, 224))
 
-        index = int(np.argmax(prediction))
-        class_key = CLASS_NAMES[index]
-        confidence = float(prediction[index]) * 100
+    arr = np.array(image)
+    arr = np.expand_dims(arr, axis=0)
+    arr = preprocess_input(arr)
 
-        if class_key == "notumor":
-            final_result = "No Tumor"
-            status = "Sain"
-        else:
-            final_result = DISPLAY_NAMES[class_key]
-            status = "Tumeur détectée"
+    preds = model.predict(arr)
+    index = int(np.argmax(preds[0]))
 
-        probabilities = {}
-        for i, key in enumerate(CLASS_NAMES):
-            probabilities[DISPLAY_NAMES[key]] = round(float(prediction[i]) * 100, 2)
+    predicted_class = CLASS_NAMES[index]
+    confidence = float(preds[0][index] * 100)
 
-        return jsonify({
-            "status": status,
-            "result": final_result,
-            "confidence": round(confidence, 2),
-            "probabilities": probabilities
-        })
+    class_name = LABELS_FR[predicted_class]
+    result_text = "PAS DE TUMEUR" if predicted_class == "notumor" else "TUMEUR DÉTECTÉE"
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    prediction = {
+        "result": result_text,
+        "class_name": class_name,
+        "confidence": round(confidence, 1),
+        "image": "uploads/uploaded_image.jpg"
+    }
+
+    history.append({
+        "id": f"#{1250 + len(history)}",
+        "result": result_text,
+        "class_name": class_name,
+        "confidence": round(confidence, 1)
+    })
+
+    return render_template(
+        "index.html",
+        prediction=prediction,
+        history=history[-3:],
+        stats=get_stats()
+    )
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(debug=True)
