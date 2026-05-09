@@ -27,8 +27,16 @@ def prepare_image(file):
 
 @app.route("/")
 def home():
-    return render_template("index.html")
-
+    stats = {
+        "percentages": {
+            "Gliome": 0,
+            "Méningiome": 0,
+            "Pituitary": 0,
+            "Sain": 0,
+            "Metastatic": 0
+        }
+    }
+    return render_template("index.html", stats=stats)
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
