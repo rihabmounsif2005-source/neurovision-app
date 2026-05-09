@@ -9,7 +9,7 @@ app = Flask(__name__)
 MODEL_PATH = os.path.join("model", "brain_tumor_model.keras")
 model = tf.keras.models.load_model(MODEL_PATH)
 
-CLASS_NAMES = ["glioma", "meningioma", "notumor", "pituitary"]
+CLASS_NAMES = ["notumor", "glioma", "meningioma", "pituitary"]
 
 DISPLAY_NAMES = {
     "glioma": "Glioma",
