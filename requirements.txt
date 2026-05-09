@@ -1,0 +1,9 @@
+tensorflow>=2.15
+pillow
+numpy
+matplotlib
+scikit-learn
+pandas
+flask
+gunicorn
+opencv-python-headless

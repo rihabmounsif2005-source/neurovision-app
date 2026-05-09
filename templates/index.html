@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroVision</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+
+        <div class="logo">
+            <div class="logo-icon">
+                <i class="fas fa-brain"></i>
+            </div>
+
+            <div>
+                <h2>NEURO <span>VISION</span></h2>
+                <p>Analyse des tumeurs cérébrales</p>
+            </div>
+        </div>
+
+      <ul class="menu">
+
+    <li class="active" onclick="showSection('accueil', this)">
+        <i class="fas fa-home"></i>
+        <span>Accueil</span>
+    </li>
+
+    <li onclick="showSection('detection', this)">
+        <i class="fas fa-crosshairs"></i>
+        <span>Détection</span>
+    </li>
+
+    <li onclick="showSection('exemples', this)">
+        <i class="fas fa-image"></i>
+        <span>Exemples IRM</span>
+    </li>
+
+    <li onclick="showSection('historique', this)">
+        <i class="fas fa-history"></i>
+        <span>Historique</span>
+    </li>
+
+    <li onclick="showSection('apropos', this)">
+        <i class="fas fa-info-circle"></i>
+        <span>À propos</span>
+    </li>
+
+    <li onclick="showSection('parametres', this)">
+        <i class="fas fa-cog"></i>
+        <span>Paramètres</span>
+    </li>
+
+</ul>
+        <div class="warning-box">
+            <h3>
+                <i class="fas fa-shield-alt"></i>
+                Avertissement Médical
+            </h3>
+
+            <p>
+                Cette application est réalisée uniquement à des fins pédagogiques.
+                Elle ne remplace en aucun cas un diagnostic médical professionnel.
+            </p>
+        </div>
+
+        <div class="brain-image-box">
+            <img src="{{ url_for('static', filename='uploads/brain_red.png') }}" alt="Brain">
+        </div>
+
+    </div>
+
+    <!-- MAIN -->
+    <div class="main-content" id="accueil">
+
+        <div class="topbar">
+            <div>
+                <h1>Bienvenue dans <span>NeuroVision</span></h1>
+                <p>Détection intelligente des tumeurs cérébrales à partir d’images IRM.</p>
+            </div>
+
+            <div class="search-box">
+                <input type="text" placeholder="Rechercher...">
+                <i class="fas fa-search"></i>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div id="detection-section"></div>
+
+            <!-- IMPORT -->
+            <div class="card upload-card" id="detection">
+                <h3>Importer une image IRM</h3>
+
+                <div class="upload-zone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+
+                    <p>Glissez-déposez votre image ici</p>
+
+                    <form action="/predict" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="image" id="fileInput" accept="image/*" hidden>
+                        <p id="fileName" class="file-name">Aucun fichier choisi</p>
+
+                        <button type="button" onclick="document.getElementById('fileInput').click()">
+                            Choisir un fichier
+                        </button>
+
+                        <button type="submit" class="analyze-btn">
+                            Analyser
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- PREVIEW -->
+            <div class="card preview-card">
+                <h3>Prévisualisation</h3>
+
+                <img
+                    src="{% if prediction %}{{ url_for('static', filename=prediction.image) }}{% else %}{{ url_for('static', filename='uploads/irm1.jpg') }}{% endif %}"
+                    class="preview-image">
+
+                <div class="image-actions">
+                    <button><i class="fas fa-search-plus"></i></button>
+                    <button><i class="fas fa-sync-alt"></i></button>
+                    <button><i class="fas fa-expand"></i></button>
+                </div>
+            </div>
+
+            <!-- RESULT -->
+            <div class="card result-card">
+                <h3>Résultat de l’analyse</h3>
+
+                <div class="result-alert
+                    {% if prediction and prediction.result == 'PAS DE TUMEUR' %}
+                        safe-alert
+                    {% elif not prediction %}
+                        wait-alert
+                    {% endif %}
+                ">
+                    <i class="fas fa-triangle-exclamation"></i>
+
+                    <span>
+                        {% if prediction %}
+                            {{ prediction.result }}
+                        {% else %}
+                            En attente d'analyse
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="score">
+                    {% if prediction %}
+                        {{ prediction.confidence }}%
+                    {% else %}
+                        --
+                    {% endif %}
+                </div>
+
+                <p class="score-text">
+                    {% if prediction %}
+                        Type détecté : {{ prediction.class_name }}
+                    {% else %}
+                        En attente d’analyse
+                    {% endif %}
+                </p>
+            </div>
+
+            <!-- EXAMPLES -->
+<div class="card examples-card" id="exemples">
+                    <h3>Exemples d’images IRM</h3>
+
+                <div class="example-grid">
+                    <div class="example-item">
+                        <img src="{{ url_for('static', filename='uploads/irm1.jpg') }}">
+                        <p>Glioma</p>
+                        <span class="tumor-tag">Tumeur</span>
+                    </div>
+
+                    <div class="example-item">
+                        <img src="{{ url_for('static', filename='uploads/irm2.jpg') }}">
+                        <p>Meningioma</p>
+                        <span class="tumor-tag">Tumeur</span>
+                    </div>
+
+                    <div class="example-item">
+                        <img src="{{ url_for('static', filename='uploads/irm3.jpg') }}">
+                        <p>Pituitary</p>
+                        <span class="tumor-tag">Tumeur</span>
+                    </div>
+
+                    <div class="example-item">
+                        <img src="{{ url_for('static', filename='uploads/irm4.jpg') }}">
+                        <p>Metastatic</p>
+                        <span class="tumor-tag">Tumeur</span>
+                    </div>
+
+                    <div class="example-item">
+                        <img src="{{ url_for('static', filename='uploads/irm5.jpg') }}">
+                        <p>No Tumor</p>
+                        <span class="healthy-tag">Sain</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HISTORY -->
+<div class="card history-card" id="historique">             
+       <h3>Historique des prédictions</h3>
+
+                <table class="history-table">
+                    <tr>
+                        <th>ID</th>
+                        <th>Résultat</th>
+                        <th>Confiance</th>
+                    </tr>
+
+                    {% for item in history %}
+                    <tr>
+                        <td>{{ item.id }}</td>
+
+                        <td class="{% if item.result == 'PAS DE TUMEUR' %}safe-text{% else %}danger-text{% endif %}">
+                            {{ item.result }}
+                        </td>
+
+                        <td>{{ item.confidence }}%</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <!-- DONUT -->
+            <div class="card donut-card">
+                <h3>Répartition des types de tumeurs</h3>
+
+                <div class="donut-container">
+                    <div class="donut-chart"></div>
+
+                    <div class="legend">
+                        <p>🔴 Gliome {{ stats.percentages["Gliome"] }}%</p>
+                        <p>🟠 Méningiome {{ stats.percentages["Méningiome"] }}%</p>
+                        <p>🟡 Pituitary {{ stats.percentages["Tumeur hypophysaire"] }}%</p>
+                        <p>⚪ Sain {{ stats.percentages["Pas de tumeur"] }}%</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STATS -->
+<div class="card stats-card" id="stats">              <h3>Statistiques générales</h3>
+
+                <div class="stats-box">
+                    <div class="stat-item">
+                        <h2>{{ stats.total }}</h2>
+                        <p>IRM analysées</p>
+                    </div>
+
+                    <div class="stat-item">
+                        <h2>{{ stats.counts["Gliome"] }}</h2>
+                        <p>Gliomes</p>
+                    </div>
+
+                    <div class="stat-item">
+                        <h2>{{ stats.counts["Méningiome"] }}</h2>
+                        <p>Méningiomes</p>
+                    </div>
+
+                    <div class="stat-item">
+                        <h2>{{ stats.counts["Tumeur hypophysaire"] }}</h2>
+                        <p>Pituitary</p>
+                    </div>
+
+                    <div class="stat-item">
+                        <h2>{{ stats.counts["Pas de tumeur"] }}</h2>
+                        <p>Sains</p>
+                    </div>
+
+                    <div class="stat-item">
+                        <h2>0</h2>
+                        <p>Metastatic</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>
