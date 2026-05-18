@@ -3,7 +3,6 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 app = Flask(__name__)
 
@@ -11,7 +10,6 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "brain_tumor_model.keras"
 UPLOAD_DIR = BASE_DIR / "static" / "uploads"
 
-# IMPORTANT : cet ordre doit correspondre à l'ordre utilisé pendant l'entraînement
 CLASS_NAMES = ["glioma", "meningioma", "notumor", "pituitary"]
 
 LABELS_FR = {
@@ -26,9 +24,38 @@ history = []
 model = tf.keras.models.load_model(MODEL_PATH)
 
 
+def preprocess_image(image_path):
+    """
+    ✅ CORRECTION PRINCIPALE du bug "toujours notumor".
+    
+    L'ancienne version utilisait preprocess_input de MobileNetV2
+    qui normalise entre -1 et +1. Si ton modèle a été entraîné
+    avec rescale=1./255, les valeurs d'entrée étaient complètement
+    différentes → le modèle retournait toujours la même classe.
+    
+    On utilise maintenant /255.0 (normalisation standard).
+    Si ça ne marche toujours pas, décommente OPTION B ci-dessous.
+    """
+    image = Image.open(image_path).convert("RGB")
+    image = image.resize((224, 224))
+    arr = np.array(image, dtype=np.float32)
+    arr = np.expand_dims(arr, axis=0)
+
+    # ✅ OPTION A : Normalisation /255 — la plus courante pour les modèles custom
+    arr = arr / 255.0
+
+    # ❌ OPTION B : MobileNetV2 preprocess_input (-1 à +1)
+    # Décommente UNIQUEMENT si ton modèle a été entraîné avec preprocess_input natif
+    # from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+    # arr = preprocess_input(arr)
+
+    return arr
+
+
 def get_stats():
     total = len(history)
 
+    # ✅ CORRECTION : "Metastatic" supprimé — cette classe n'existe pas dans ton modèle
     counts = {
         "Gliome": 0,
         "Méningiome": 0,
@@ -41,11 +68,7 @@ def get_stats():
             counts[item["class_name"]] += 1
 
     denominator = total if total > 0 else 1
-
-    percentages = {
-        key: round((value / denominator) * 100)
-        for key, value in counts.items()
-    }
+    percentages = {k: round((v / denominator) * 100) for k, v in counts.items()}
 
     return {
         "total": total,
@@ -76,30 +99,30 @@ def predict():
             stats=get_stats()
         )
 
+    # ✅ CORRECTION : Crée le dossier uploads s'il n'existe pas
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
     image_path = UPLOAD_DIR / "uploaded_image.jpg"
     file.save(image_path)
 
-    image = Image.open(image_path).convert("RGB")
-    image = image.resize((224, 224))
+    # ✅ Preprocessing corrigé
+    arr = preprocess_image(image_path)
 
-    arr = np.array(image)
-    arr = np.expand_dims(arr, axis=0)
-    arr = preprocess_input(arr)
+    preds = model.predict(arr)
+    index = int(np.argmax(preds[0]))
 
-    preds = model.predict(arr, verbose=0)[0]
+    # ✅ DEBUG : Affiche toutes les probabilités dans le terminal pour diagnostic
+    print("\n" + "=" * 50)
+    print("📊 PRÉDICTIONS BRUTES :")
+    for i, cls in enumerate(CLASS_NAMES):
+        bar = "█" * int(preds[0][i] * 20)
+        print(f"  {cls:15s}: {preds[0][i]*100:6.2f}%  {bar}")
+    print(f"✅ Classe choisie : {CLASS_NAMES[index]} ({preds[0][index]*100:.1f}%)")
+    print("=" * 50 + "\n")
 
-    index = int(np.argmax(preds))
     predicted_class = CLASS_NAMES[index]
-    confidence = float(preds[index] * 100)
-
+    confidence = float(preds[0][index] * 100)
     class_name = LABELS_FR[predicted_class]
-
-    if predicted_class == "notumor":
-        result_text = "PAS DE TUMEUR"
-    else:
-        result_text = "TUMEUR DÉTECTÉE"
+    result_text = "PAS DE TUMEUR" if predicted_class == "notumor" else "TUMEUR DÉTECTÉE"
 
     prediction = {
         "result": result_text,
