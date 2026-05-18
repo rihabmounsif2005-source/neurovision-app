@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "brain_tumor_model.keras"
 UPLOAD_DIR = BASE_DIR / "static" / "uploads"
 
+# IMPORTANT : cet ordre doit correspondre à l'ordre utilisé pendant l'entraînement
 CLASS_NAMES = ["glioma", "meningioma", "notumor", "pituitary"]
 
 LABELS_FR = {
@@ -33,7 +34,6 @@ def get_stats():
         "Méningiome": 0,
         "Tumeur hypophysaire": 0,
         "Pas de tumeur": 0,
-        "Metastatic": 0
     }
 
     for item in history:
@@ -43,11 +43,8 @@ def get_stats():
     denominator = total if total > 0 else 1
 
     percentages = {
-        "Gliome": round((counts["Gliome"] / denominator) * 100),
-        "Méningiome": round((counts["Méningiome"] / denominator) * 100),
-        "Tumeur hypophysaire": round((counts["Tumeur hypophysaire"] / denominator) * 100),
-        "Pas de tumeur": round((counts["Pas de tumeur"] / denominator) * 100),
-        "Metastatic": round((counts["Metastatic"] / denominator) * 100)
+        key: round((value / denominator) * 100)
+        for key, value in counts.items()
     }
 
     return {
@@ -79,6 +76,8 @@ def predict():
             stats=get_stats()
         )
 
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
     image_path = UPLOAD_DIR / "uploaded_image.jpg"
     file.save(image_path)
 
@@ -89,14 +88,18 @@ def predict():
     arr = np.expand_dims(arr, axis=0)
     arr = preprocess_input(arr)
 
-    preds = model.predict(arr)
-    index = int(np.argmax(preds[0]))
+    preds = model.predict(arr, verbose=0)[0]
 
+    index = int(np.argmax(preds))
     predicted_class = CLASS_NAMES[index]
-    confidence = float(preds[0][index] * 100)
+    confidence = float(preds[index] * 100)
 
     class_name = LABELS_FR[predicted_class]
-    result_text = "PAS DE TUMEUR" if predicted_class == "notumor" else "TUMEUR DÉTECTÉE"
+
+    if predicted_class == "notumor":
+        result_text = "PAS DE TUMEUR"
+    else:
+        result_text = "TUMEUR DÉTECTÉE"
 
     prediction = {
         "result": result_text,
